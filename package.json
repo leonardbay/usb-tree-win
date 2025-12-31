@@ -32,7 +32,11 @@
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": ""
+        "url": "https://github.com/leonardbay/usb-tree-win.git"
+    },
+    "homepage": "https://github.com/leonardbay/usb-tree-win#readme",
+    "bugs": {
+        "url": "https://github.com/leonardbay/usb-tree-win/issues"
     },
     "engines": {
         "node": ">=16.0.0"
