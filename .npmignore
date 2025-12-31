@@ -1,0 +1,13 @@
+# Source files (types come from dist/*.d.ts)
+src/
+
+# Development files
+scripts/
+*.ps1
+tsconfig*.json
+.gitignore
+.vscode/
+
+# Misc
+*.log
+coverage/
