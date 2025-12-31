@@ -1,5 +1,7 @@
 # USBView TypeScript - USB Device Tree for Windows 11
 
+This is an experimental component created entirely by AI agents.
+
 A Node.js TypeScript implementation of USB device tree enumeration for Windows, inspired by [USBTreeView](https://www.uwe-sieber.de/usbtreeview_e.html). Enumerates connected USB devices with proper hub hierarchy, COM port mapping, and port chain identification.
 
 ## Features

@@ -144,13 +144,23 @@ if ($usbInstanceIds.Count -gt 0) {
         $batch = $usbInstanceIds[$i..($i+$count-1)]
         
         try {
-            $props = Get-PnpDeviceProperty -InstanceId $batch -KeyName 'DEVPKEY_Device_Parent' -ErrorAction SilentlyContinue
+            $props = Get-PnpDeviceProperty -InstanceId $batch -KeyName 'DEVPKEY_Device_Parent' -ErrorAction Stop
             foreach ($p in $props) {
                 if ($p.Data) {
                     $parentMap[$p.InstanceId.ToUpper()] = $p.Data
                 }
             }
-        } catch {}
+        } catch {
+            # Fallback to individual fetch if batch fails
+            foreach ($id in $batch) {
+                try {
+                    $p = Get-PnpDeviceProperty -InstanceId $id -KeyName 'DEVPKEY_Device_Parent' -ErrorAction SilentlyContinue
+                    if ($p.Data) {
+                        $parentMap[$id.ToUpper()] = $p.Data
+                    }
+                } catch {}
+            }
+        }
     }
 }
 
@@ -209,17 +219,13 @@ foreach ($dev in $portsDevices) {
 
 $kernelNames = @{}
 if ($comInstanceIds.Count -gt 0) {
-    # Batch fetch Kernel Names (PDO Name) - chunked
-    for ($i = 0; $i -lt $comInstanceIds.Count; $i += 20) {
-        $count = [Math]::Min(20, $comInstanceIds.Count - $i)
-        $batch = $comInstanceIds[$i..($i+$count-1)]
-        
+    # Fetch Kernel Names (PDO Name) individually to ensure reliability
+    # Batch fetching proved unreliable for mixed device types
+    foreach ($id in $comInstanceIds) {
         try {
-            $props = Get-PnpDeviceProperty -InstanceId $batch -KeyName DEVPKEY_Device_PDOName -ErrorAction SilentlyContinue
-            foreach ($p in $props) {
-                if ($p.Data) {
-                    $kernelNames[$p.InstanceId.ToUpper()] = $p.Data
-                }
+            $p = Get-PnpDeviceProperty -InstanceId $id -KeyName DEVPKEY_Device_PDOName -ErrorAction SilentlyContinue
+            if ($p.Data) {
+                $kernelNames[$id.ToUpper()] = $p.Data
             }
         } catch {}
     }
@@ -388,7 +394,7 @@ export function buildUSBTree(): USBTree {
             dev.portChain = `${parentChain}-${dev.portNumber}`;
         }
         // If it's a root hub, it's handled in the loop below
-        
+
         for (const child of dev.children) {
             buildPortChain(child, dev.portChain);
         }
@@ -399,7 +405,7 @@ export function buildUSBTree(): USBTree {
         // Root hub starts the chain at 1, 2, 3...
         // If there are multiple root hubs, they get sequential numbers
         root.portChain = (i + 1).toString();
-        
+
         for (const child of root.children) {
             buildPortChain(child, root.portChain);
         }

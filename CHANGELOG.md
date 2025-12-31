@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.4] - 2025-12-31
+### Fixed
+- Fixed regression where batch fetching of `DEVPKEY_Device_Parent` failed for some devices, causing broken tree structures. Implemented robust fallback to individual fetching.
+- Fixed regression where batch fetching of `DEVPKEY_Device_PDOName` failed, causing missing Kernel names. Switched to individual fetching for reliability.
+
 ## [1.0.3] - 2025-12-31
 ### Fixed
 - Fixed regressions introduced in 1.0.2:
