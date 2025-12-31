@@ -10,7 +10,7 @@ A Node.js TypeScript implementation of USB device tree enumeration for Windows, 
 - **FTDI Dual-Port Support**: FTDI devices show as parent with JTAG/Serial children (e.g., `1-1-3-2-1`, `1-1-3-2-2`)
 - **Serial Number Detection**: Distinguishes real device serials from Windows instance IDs
 - **Connected Devices Only**: Only shows currently connected devices (no phantom devices)
-- **No Native Dependencies**: Uses Windows built-in tools (pnputil, PowerShell) - no gyp/C++ compilation needed
+- **No Native Dependencies**: Uses Windows built-in tools (PowerShell, CIM/WMI) - no gyp/C++ compilation needed
 
 ## Installation
 
@@ -99,6 +99,12 @@ Find a device by its exact port chain (e.g., `"1-1-3-2-1"`).
 ### `getDevicesByPortChainPrefix(tree: USBTree, prefix: string): USBDevice[]`
 Find all devices under a port chain prefix (e.g., `"1-1-3"` returns the hub and all children).
 
+## Troubleshooting
+
+If you encounter issues with device enumeration, a PowerShell script is provided in the `scripts/` directory:
+
+- `scripts/debug-ports.ps1`: Enumerates COM ports using the Windows Registry (`HKLM:\HARDWARE\DEVICEMAP\SERIALCOMM`) instead of CIM/WMI. This is useful for verifying if a COM port is actually registered by the system even if the main application fails to map it.
+
 ### `getComPortList(tree: USBTree): ComPortInfo[]`
 Get a flat list of all COM ports with device info and port chains.
 
@@ -112,8 +118,7 @@ src/
 ├── index.ts      # Entry point and exports
 └── usb-tree.ts   # USB tree enumeration logic
 scripts/
-├── debug-ports.ps1       # Diagnostic: enumerate COM ports from registry
-└── diagnose-topology.ps1 # Diagnostic: show USB parent-child relationships
+└── debug-ports.ps1       # Diagnostic: enumerate COM ports from registry
 ```
 
 ## Requirements
@@ -124,7 +129,7 @@ scripts/
 
 ## How It Works
 
-Uses Windows `pnputil` to enumerate connected USB and USBDevice class devices, then queries parent-child relationships to build the actual topology. COM port associations are determined from the Ports device class. No native modules or libusb required.
+Uses native PowerShell CIM/WMI commands (`Get-CimInstance`) to enumerate connected USB and USBDevice class devices directly from the Windows Object Manager. It builds the topology by querying parent-child relationships and mapping COM ports from the Ports device class. No native modules, `pnputil`, or libusb required.
 
 ## Author
 

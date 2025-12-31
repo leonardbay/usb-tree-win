@@ -2,6 +2,7 @@
  * USB Tree Enumerator - Windows Registry Based
  * Builds actual USB topology from Windows registry parent-child relationships
  * Only enumerates currently connected devices
+ * Uses native PowerShell CIM/WMI calls (no pnputil dependency)
  */
 
 import { execSync } from 'child_process';
@@ -113,21 +114,40 @@ function getUSBTreeData(): {
     const psScript = `
 $ErrorActionPreference = 'SilentlyContinue'
 
-# Get ONLY currently connected/started USB devices using pnputil
-# We need multiple classes: USB (hubs, standard devices), USBDevice (WinUSB devices), Ports (COM ports)
-$connectedDevices = @{}
+# 1. Get all connected PnP entities once (fastest method)
+$allDevices = Get-CimInstance -ClassName Win32_PnPEntity -Filter "Status='OK'"
 
-foreach ($class in @("USB", "USBDevice", "Ports")) {
-    $pnpOutput = pnputil /enum-devices /class $class /connected 2>$null
-    foreach ($line in $pnpOutput -split "\`n") {
-        if ($line -match "Instance ID:\\s*(.+)") {
-            $currentDevice = $matches[1].Trim()
-            $connectedDevices[$currentDevice] = $true
+# 2. Build lookup tables and lists in memory
+$connectedDevices = @{}
+$portsDevices = @()
+$usbInstanceIds = @()
+
+foreach ($dev in $allDevices) {
+    if ($dev.PNPClass -eq 'USB' -or $dev.PNPClass -eq 'USBDevice' -or $dev.PNPClass -eq 'Ports') {
+        $id = $dev.PNPDeviceID
+        $connectedDevices[$id.ToUpper()] = $true
+        $usbInstanceIds += $id
+        
+        if ($dev.PNPClass -eq 'Ports') {
+            $portsDevices += $dev
         }
     }
 }
 
-# Now enumerate USB devices from registry, but only output connected ones
+# 3. Bulk fetch parent relationships (batch operation)
+$parentMap = @{}
+if ($usbInstanceIds.Count -gt 0) {
+    # Get-PnpDeviceProperty accepts array of InstanceIds
+    # We batch them to avoid multiple calls
+    $props = Get-PnpDeviceProperty -InstanceId $usbInstanceIds -KeyName 'DEVPKEY_Device_Parent' -ErrorAction SilentlyContinue
+    foreach ($p in $props) {
+        if ($p.Data) {
+            $parentMap[$p.InstanceId.ToUpper()] = $p.Data
+        }
+    }
+}
+
+# 4. Enumerate Registry for structure (fast)
 $usbPath = "HKLM:\\SYSTEM\\CurrentControlSet\\Enum\\USB"
 
 Get-ChildItem $usbPath | ForEach-Object {
@@ -140,18 +160,14 @@ Get-ChildItem $usbPath | ForEach-Object {
         $instancePath = "USB\\$vidPidKey\\$instanceId"
         
         # Skip if not currently connected
-        if (-not $connectedDevices[$instancePath]) { return }
+        if (-not $connectedDevices[$instancePath.ToUpper()]) { return }
         
         # Skip interface devices (MI_xx)
         if ($vidPidKey -match "&MI_\\d+") { return }
         
-        # Get parent via pnputil
-        $parentPath = ""
-        $pnpDevOutput = pnputil /enum-devices /instanceid "$instancePath" /relations 2>$null
-        $parentLine = ($pnpDevOutput | Select-String "Parent:" | Select-Object -First 1)
-        if ($parentLine) {
-            $parentPath = ($parentLine -replace "^\\s*Parent:\\s*", "").Trim()
-        }
+        # Get parent from pre-fetched map
+        $parentPath = $parentMap[$instancePath.ToUpper()]
+        if (-not $parentPath) { $parentPath = "" }
         
         # Extract port number from location info (e.g., "Port_#0001.Hub_#0002")
         $portNumber = 0
@@ -178,42 +194,34 @@ Get-ChildItem $usbPath | ForEach-Object {
     }
 }
 
-# Get COM ports directly from pnputil output - most reliable method
-$comPortOutput = pnputil /enum-devices /class Ports /connected 2>$null
-$currentInstanceId = $null
-$currentDescription = $null
+# 5. Output COM ports from cached list (fast)
+foreach ($dev in $portsDevices) {
+    $currentInstanceId = $dev.PNPDeviceID
+    $currentDescription = $dev.Name
 
-foreach ($line in $comPortOutput -split "\`n") {
-    if ($line -match "Instance ID:\\s*(.+)") {
-        $currentInstanceId = $matches[1].Trim()
-    }
-    elseif ($line -match "Device Description:\\s*(.+)") {
-        $currentDescription = $matches[1].Trim()
+    # Extract COM port from description like "Silicon Labs CP210x USB to UART Bridge (COM9)"
+    if ($currentDescription -match "\\(COM(\\d+)\\)") {
+        $comPort = "COM$($matches[1])"
         
-        # Extract COM port from description like "Silicon Labs CP210x USB to UART Bridge (COM9)"
-        if ($currentDescription -match "\\(COM(\\d+)\\)") {
-            $comPort = "COM$($matches[1])"
-            
-            # Determine if this is FTDI or regular USB COM port
-            if ($currentInstanceId -match "^FTDIBUS\\\\") {
-                # FTDI: FTDIBUS\\VID_0403+PID_6010+...\\0000
-                $channel = 0
-                $parentDeviceId = ""
-                if ($currentInstanceId -match "VID_([0-9A-Fa-f]+)\\+PID_([0-9A-Fa-f]+)\\+(.+?)\\\\") {
-                    $parentDeviceId = $matches[3]
-                    # Channel is the last part: 7&b5542c6&0&2&1 -> channel 1
-                    if ($parentDeviceId -match "&(\\d+)$") {
-                        $channel = [int]$matches[1]
-                        $parentDeviceId = $parentDeviceId -replace "&\\d+$", ""
-                    }
+        # Determine if this is FTDI or regular USB COM port
+        if ($currentInstanceId -match "^FTDIBUS\\\\") {
+            # FTDI: FTDIBUS\\VID_0403+PID_6010+...\\0000
+            $channel = 0
+            $parentDeviceId = ""
+            if ($currentInstanceId -match "VID_([0-9A-Fa-f]+)\\+PID_([0-9A-Fa-f]+)\\+(.+?)\\\\") {
+                $parentDeviceId = $matches[3]
+                # Channel is the last part: 7&b5542c6&0&2&1 -> channel 1
+                if ($parentDeviceId -match "&(\\d+)$") {
+                    $channel = [int]$matches[1]
+                    $parentDeviceId = $parentDeviceId -replace "&\\d+$", ""
                 }
-                $parentUsbPath = "USB\\VID_0403&PID_6010\\$parentDeviceId"
-                Write-Output "COMPORT|$comPort|$parentUsbPath|$channel"
             }
-            elseif ($currentInstanceId -match "^USB\\\\") {
-                # Regular USB: USB\\VID_10C4&PID_EA60\\xxxx
-                Write-Output "COMPORT|$comPort|$currentInstanceId|0"
-            }
+            $parentUsbPath = "USB\\VID_0403&PID_6010\\$parentDeviceId"
+            Write-Output "COMPORT|$comPort|$parentUsbPath|$channel"
+        }
+        elseif ($currentInstanceId -match "^USB\\\\") {
+            # Regular USB: USB\\VID_10C4&PID_EA60\\xxxx
+            Write-Output "COMPORT|$comPort|$currentInstanceId|0"
         }
     }
 }
@@ -243,7 +251,7 @@ foreach ($line in $comPortOutput -split "\`n") {
                     // Check if instance ID looks like a real serial (no & characters, reasonable length)
                     const looksLikeSerial = !instanceId.includes('&') && instanceId.length >= 4 && instanceId.length <= 32;
 
-                    devices.set(instancePath, {
+                    devices.set(instancePath.toUpperCase(), {
                         instancePath,
                         vid: vid.toUpperCase(),
                         pid: pid.toUpperCase(),
@@ -290,7 +298,7 @@ export function buildUSBTree(): USBTree {
 
     // Assign COM ports to devices
     for (const [comPort, info] of comPorts) {
-        const dev = devices.get(info.instancePath);
+        const dev = devices.get(info.instancePath.toUpperCase());
         if (dev) {
             const comInfo: ComPortInfo = {
                 port: comPort,
@@ -315,7 +323,7 @@ export function buildUSBTree(): USBTree {
     // Build tree structure - assign children to parents
     for (const dev of devices.values()) {
         if (dev.parentPath) {
-            const parent = devices.get(dev.parentPath);
+            const parent = devices.get(dev.parentPath.toUpperCase());
             if (parent) {
                 parent.children.push(dev);
             }
@@ -330,7 +338,7 @@ export function buildUSBTree(): USBTree {
     // Find root hubs (devices with no parent in our device map)
     const rootHubs: USBDevice[] = [];
     for (const dev of devices.values()) {
-        if (!dev.parentPath || !devices.has(dev.parentPath)) {
+        if (!dev.parentPath || !devices.has(dev.parentPath.toUpperCase())) {
             if (dev.isHub || dev.vid === 'ROOT') {
                 rootHubs.push(dev);
             }
@@ -383,7 +391,7 @@ export function buildUSBTree(): USBTree {
                 dev.children.push(childDevice);
 
                 // Add to devices map so it can be found by port chain
-                devices.set(childDevice.instancePath, childDevice);
+                devices.set(childDevice.instancePath.toUpperCase(), childDevice);
 
                 // Update comPortMap to point to the child device
                 comPortMap.set(comInfo.port, { device: childDevice, comInfo });
