@@ -138,12 +138,19 @@ foreach ($dev in $allDevices) {
 $parentMap = @{}
 if ($usbInstanceIds.Count -gt 0) {
     # Get-PnpDeviceProperty accepts array of InstanceIds
-    # We batch them to avoid multiple calls
-    $props = Get-PnpDeviceProperty -InstanceId $usbInstanceIds -KeyName 'DEVPKEY_Device_Parent' -ErrorAction SilentlyContinue
-    foreach ($p in $props) {
-        if ($p.Data) {
-            $parentMap[$p.InstanceId.ToUpper()] = $p.Data
-        }
+    # We batch them in chunks to avoid failures with large sets or specific bad IDs
+    for ($i = 0; $i -lt $usbInstanceIds.Count; $i += 20) {
+        $count = [Math]::Min(20, $usbInstanceIds.Count - $i)
+        $batch = $usbInstanceIds[$i..($i+$count-1)]
+        
+        try {
+            $props = Get-PnpDeviceProperty -InstanceId $batch -KeyName 'DEVPKEY_Device_Parent' -ErrorAction SilentlyContinue
+            foreach ($p in $props) {
+                if ($p.Data) {
+                    $parentMap[$p.InstanceId.ToUpper()] = $p.Data
+                }
+            }
+        } catch {}
     }
 }
 
@@ -195,6 +202,29 @@ Get-ChildItem $usbPath | ForEach-Object {
 }
 
 # 5. Output COM ports from cached list (fast)
+$comInstanceIds = @()
+foreach ($dev in $portsDevices) {
+    $comInstanceIds += $dev.PNPDeviceID
+}
+
+$kernelNames = @{}
+if ($comInstanceIds.Count -gt 0) {
+    # Batch fetch Kernel Names (PDO Name) - chunked
+    for ($i = 0; $i -lt $comInstanceIds.Count; $i += 20) {
+        $count = [Math]::Min(20, $comInstanceIds.Count - $i)
+        $batch = $comInstanceIds[$i..($i+$count-1)]
+        
+        try {
+            $props = Get-PnpDeviceProperty -InstanceId $batch -KeyName DEVPKEY_Device_PDOName -ErrorAction SilentlyContinue
+            foreach ($p in $props) {
+                if ($p.Data) {
+                    $kernelNames[$p.InstanceId.ToUpper()] = $p.Data
+                }
+            }
+        } catch {}
+    }
+}
+
 foreach ($dev in $portsDevices) {
     $currentInstanceId = $dev.PNPDeviceID
     $currentDescription = $dev.Name
@@ -202,6 +232,8 @@ foreach ($dev in $portsDevices) {
     # Extract COM port from description like "Silicon Labs CP210x USB to UART Bridge (COM9)"
     if ($currentDescription -match "\\(COM(\\d+)\\)") {
         $comPort = "COM$($matches[1])"
+        $pdoName = $kernelNames[$currentInstanceId.ToUpper()]
+        if (-not $pdoName) { $pdoName = "" }
         
         # Determine if this is FTDI or regular USB COM port
         if ($currentInstanceId -match "^FTDIBUS\\\\") {
@@ -217,11 +249,11 @@ foreach ($dev in $portsDevices) {
                 }
             }
             $parentUsbPath = "USB\\VID_0403&PID_6010\\$parentDeviceId"
-            Write-Output "COMPORT|$comPort|$parentUsbPath|$channel"
+            Write-Output "COMPORT|$comPort|$parentUsbPath|$channel|$pdoName"
         }
         elseif ($currentInstanceId -match "^USB\\\\") {
             # Regular USB: USB\\VID_10C4&PID_EA60\\xxxx
-            Write-Output "COMPORT|$comPort|$currentInstanceId|0"
+            Write-Output "COMPORT|$comPort|$currentInstanceId|0|$pdoName"
         }
     }
 }
@@ -269,12 +301,12 @@ foreach ($dev in $portsDevices) {
                 }
             } else if (trimmed.startsWith('COMPORT|')) {
                 const parts = trimmed.split('|');
-                if (parts.length >= 4) {
-                    const [, comPort, instancePath, channelStr] = parts;
+                if (parts.length >= 5) {
+                    const [, comPort, instancePath, channelStr, kernelName] = parts;
                     const channel = parseInt(channelStr) || 0;
                     comPorts.set(comPort, {
                         instancePath,
-                        kernelName: '',
+                        kernelName: kernelName || '',
                         channel: channel > 0 ? channel : undefined,
                     });
                 }
@@ -339,27 +371,38 @@ export function buildUSBTree(): USBTree {
     const rootHubs: USBDevice[] = [];
     for (const dev of devices.values()) {
         if (!dev.parentPath || !devices.has(dev.parentPath.toUpperCase())) {
+            // Only treat as root hub if it's actually a hub or root
+            // Or if it's a top-level device that we want to show
             if (dev.isHub || dev.vid === 'ROOT') {
                 rootHubs.push(dev);
             }
         }
     }
 
+    // Sort root hubs by instance ID to ensure deterministic order
+    rootHubs.sort((a, b) => a.instanceId.localeCompare(b.instanceId));
+
     // Build port chains recursively - starting from 1, not 0 (matches USBTreeView format)
     function buildPortChain(dev: USBDevice, parentChain: string): void {
         if (parentChain) {
             dev.portChain = `${parentChain}-${dev.portNumber}`;
-        } else {
-            // Root hub starts the chain at 1
-            dev.portChain = '1';
         }
+        // If it's a root hub, it's handled in the loop below
+        
         for (const child of dev.children) {
             buildPortChain(child, dev.portChain);
         }
     }
 
-    for (const root of rootHubs) {
-        buildPortChain(root, '');
+    for (let i = 0; i < rootHubs.length; i++) {
+        const root = rootHubs[i];
+        // Root hub starts the chain at 1, 2, 3...
+        // If there are multiple root hubs, they get sequential numbers
+        root.portChain = (i + 1).toString();
+        
+        for (const child of root.children) {
+            buildPortChain(child, root.portChain);
+        }
     }
 
     // Create virtual child devices for multi-port COM devices (e.g., FTDI dual-port)

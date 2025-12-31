@@ -21,7 +21,8 @@ function main() {
             for (const port of comPorts) {
                 const role = port.role ? ` (${port.role})` : '';
                 const serial = port.serialNumber ? ` [S/N: ${port.serialNumber}]` : '';
-                console.log(`  ${port.port}: ${port.deviceName}${serial} [Chain: ${port.portChain}]${role}`);
+                const kernel = port.kernelName ? ` [Kernel: ${port.kernelName}]` : '';
+                console.log(`  ${port.port}: ${port.deviceName}${serial}${kernel} [Chain: ${port.portChain}]${role}`);
             }
         } else {
             console.log('  No COM ports found');
