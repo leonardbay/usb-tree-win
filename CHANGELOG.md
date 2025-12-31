@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.3] - 2025-12-31
+### Fixed
+- Fixed regressions introduced in 1.0.2:
+  - Fixed missing parent/child relationships for some devices (caused by WMI query limits).
+  - Fixed missing kernel names for COM ports.
+  - Fixed root hub numbering to be sequential.
+  - Fixed orphaned devices in the tree view.
+
 ## [1.0.2] - 2025-12-31
 
 ### Changed

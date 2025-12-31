@@ -65,24 +65,52 @@ USB Device Tree
 Connected Devices: 18
 
 \---USB Root Hub (1)
-    |--[1-1]: USB 2.0 Hub (0bda:5411)
-    |   |--[1-1-1]: CP210x USB-UART (10c4:ea60) [S/N: 0001] - COM9
-    |   |--[1-1-3]: USB 2.0 Hub (0bda:5411)
-    |   |   |--[1-1-3-1]: STM32 Virtual COM Port (0483:5740) [S/N: 5D8741883231] - COM3
-    |   |   |--[1-1-3-2]: FT2232H Dual Serial (0403:6010)
-    |   |   |   |--[1-1-3-2-1]: COM26 (JTAG) (0403:6010) - COM26 (JTAG)
-    |   |   |   \--[1-1-3-2-2]: COM27 (Serial) (0403:6010) - COM27 (Serial)
-    |   |   |--[1-1-3-3]: FT2232H Dual Serial (0403:6010)
-    |   |   |   |--[1-1-3-3-1]: COM32 (JTAG) (0403:6010) - COM32 (JTAG)
-    |   |   |   \--[1-1-3-3-2]: COM33 (Serial) (0403:6010) - COM33 (Serial)
-    |   |   \--[1-1-3-4]: USB 2.0 Hub (0bda:5411)
-    |   |       \--[1-1-3-4-2]: USB-1208FS-Plus (09db:00e8) [S/N: 024ECE03]
+    |--[1-5]: Integrated Webcam (04f2:b61e) [S/N: 0001]
+    \--[1-13]: USB 3.0 Hub (0bda:0411)
+
+\---USB Root Hub (2)
+    |--[2-3]: USB 2.0 Hub (0bda:5411)
+    |   |--[2-3-1]: STM32 Virtual COM Port (0483:5740) [S/N: 5D8741883231] - COM3
+    |   |--[2-3-2]: FT2232H Dual Serial (0403:6010)
+    |   |   |--[2-3-2-1]: COM26 (JTAG) (0403:6010) - COM26 (JTAG)
+    |   |   \--[2-3-2-2]: COM27 (Serial) (0403:6010) - COM27 (Serial)
+    |   |--[2-3-3]: FT2232H Dual Serial (0403:6010)
+    |   |   |--[2-3-3-1]: COM32 (JTAG) (0403:6010) - COM32 (JTAG)
+    |   |   \--[2-3-3-2]: COM33 (Serial) (0403:6010) - COM33 (Serial)
+    |   \--[2-3-4]: USB 2.0 Hub (0bda:5411)
+    |       \--[2-3-4-2]: USB-1208FS-Plus (09db:00e8) [S/N: 024ECE03]
+    \--[2-4]: USB 2.0 Hub (0bda:5411)
+        \--[2-4-4]: CP210x USB-UART (10c4:ea60) - COM36
+
+\---USB Root Hub (3)
 
 --- COM Ports ---
-  COM3: STM32 Virtual COM Port [S/N: 5D8741883231] [Chain: 1-1-3-1]
-  COM9: CP210x USB-UART [S/N: 0001] [Chain: 1-1-1]
-  COM26: COM26 (JTAG) [Chain: 1-1-3-2-1] (JTAG)
-  COM27: COM27 (Serial) [Chain: 1-1-3-2-2] (Serial)
+  COM3: STM32 Virtual COM Port [S/N: 5D8741883231] [Kernel: \Device\USBPDO-10] [Chain: 2-3-1]
+  COM9: CP210x USB-UART [S/N: 0001] [Kernel: \Device\USBPDO-15] [Chain: 2-1]
+  COM26: COM26 (JTAG) [Kernel: \Device\00000209] [Chain: 2-3-2-1] (JTAG)
+  COM27: COM27 (Serial) [Kernel: \Device\0000020a] [Chain: 2-3-2-2] (Serial)
+  COM32: COM32 (JTAG) [Kernel: \Device\00000210] [Chain: 2-3-3-1] (JTAG)
+  COM33: COM33 (Serial) [Kernel: \Device\00000211] [Chain: 2-3-3-2] (Serial)
+  COM36: CP210x USB-UART [Kernel: \Device\USBPDO-16] [Chain: 2-4-4]
+
+--- Device Table ---
+VID:PID    | Name                                     | Serial           | COM Ports        | Port Chain
+---------------------------------------------------------------------------------------------------------
+04F2:B61E  | Integrated Webcam                        | 0001             | -                | 1-5
+0BDA:0411  | USB 3.0 Hub                              | -                | -                | 1-13 [HUB]
+10C4:EA60  | CP210x USB-UART                          | 0001             | COM9             | 2-1
+0BDA:5411  | USB 2.0 Hub                              | -                | -                | 2-3 [HUB]
+0483:5740  | STM32 Virtual COM Port                   | 5D8741883231     | COM3             | 2-3-1
+0403:6010  | FT2232H Dual Serial                      | -                | -                | 2-3-2
+0403:6010  | COM26 (JTAG)                             | -                | COM26(J)         | 2-3-2-1
+0403:6010  | COM27 (Serial)                           | -                | COM27(S)         | 2-3-2-2
+0403:6010  | FT2232H Dual Serial                      | -                | -                | 2-3-3
+0403:6010  | COM32 (JTAG)                             | -                | COM32(J)         | 2-3-3-1
+0403:6010  | COM33 (Serial)                           | -                | COM33(S)         | 2-3-3-2
+0BDA:5411  | USB 2.0 Hub                              | -                | -                | 2-3-4 [HUB]
+09DB:00E8  | USB-1208FS-Plus                          | 024ECE03         | -                | 2-3-4-2
+0BDA:5411  | USB 2.0 Hub                              | -                | -                | 2-4 [HUB]
+10C4:EA60  | CP210x USB-UART                          | -                | COM36            | 2-4-4
 ```
 
 ## API
