@@ -184,6 +184,17 @@ Get-ChildItem $usbPath | ForEach-Object {
         
         # Get parent from pre-fetched map
         $parentPath = $parentMap[$instancePath.ToUpper()]
+        
+        # Safety net: If parent missing from batch, try individual fetch
+        if (-not $parentPath) {
+            try {
+                $p = Get-PnpDeviceProperty -InstanceId $instancePath -KeyName 'DEVPKEY_Device_Parent' -ErrorAction SilentlyContinue
+                if ($p.Data) {
+                    $parentPath = $p.Data
+                }
+            } catch {}
+        }
+
         if (-not $parentPath) { $parentPath = "" }
         
         # Extract port number from location info (e.g., "Port_#0001.Hub_#0002")

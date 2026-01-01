@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.5] - 2025-12-31
+### Fixed
+- Added additional safety net for parent device lookups. If batch fetching returns incomplete results (causing missing devices in the tree), the system now attempts an immediate individual fetch during tree construction. This fixes intermittent "missing device" issues.
+
 ## [1.0.4] - 2025-12-31
 ### Fixed
 - Fixed regression where batch fetching of `DEVPKEY_Device_Parent` failed for some devices, causing broken tree structures. Implemented robust fallback to individual fetching.
