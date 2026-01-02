@@ -8,7 +8,11 @@ A Node.js TypeScript implementation of USB device tree enumeration for Windows, 
 
 - **USB Device Tree**: Hierarchical tree showing actual USB topology (hubs and devices)
 - **Port Chain**: Each device has a port chain (e.g., `1-1-3-2`) matching [USBTreeView](https://www.uwe-sieber.de/usbtreeview_e.html) format
-- **COM Port Mapping**: Correctly associates COM ports with their USB devices
+- **COM Port Mapping**: Correctly associates COM ports with their USB devices, including Kernel Names (PDO)
+- **Dual Enumeration Engine**:
+  - **Fast Path (Default)**: Uses `pnputil` text parsing (~800ms).
+  - **Slow Path (Fallback)**: Uses PowerShell CIM/WMI (~6000ms).
+  - Clients can opt-out of the fast path if needed.
 - **FTDI Dual-Port Support**: FTDI devices show as parent with JTAG/Serial children (e.g., `1-1-3-2-1`, `1-1-3-2-2`)
 - **Serial Number Detection**: Distinguishes real device serials from Windows instance IDs
 - **Connected Devices Only**: Only shows currently connected devices (no phantom devices)
@@ -29,6 +33,15 @@ npm run build
 npm start
 ```
 
+### Benchmarking
+
+You can compare the performance of the Fast Path vs. Slow Path on your system:
+
+```bash
+npm run build
+node dist/benchmark.js
+```
+
 ### As a Module
 
 ```typescript
@@ -40,8 +53,11 @@ import {
     getComPortList 
 } from './src/usb-tree';
 
-// Build the tree
+// Build the tree (defaults to Fast Path with auto-fallback)
 const tree = buildUSBTree();
+
+// OR: Force the Slow Path (PowerShell/WMI) if you suspect issues with pnputil
+// const tree = buildUSBTree(true);
 
 // Print formatted tree
 printUSBTree(tree);

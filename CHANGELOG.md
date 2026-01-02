@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.6] - 2026-01-02
+### Added
+- **Fast Path Restoration**: Restored the high-performance `pnputil` implementation (ported from v1.0.1) as the default enumeration method. This is approximately 7x faster than the PowerShell/WMI method.
+- **Kernel Name Support**: Added extraction of Kernel Names (PDO Names, e.g., `\Device\USBPDO-6`) for COM ports in the fast path.
+- **Dual-Path Strategy**: Introduced an optional `useSlowPath` boolean parameter to `buildUSBTree` and `getUSBTreeData`.
+  - `false` (default): Tries the fast `pnputil` method first. If it fails, automatically falls back to the slower PowerShell method.
+  - `true`: Forces the use of the slower, more robust PowerShell/WMI method (skipping the fast path).
+- **Benchmark Utility**: Added `src/benchmark.ts` to measure and compare the performance and accuracy of both methods.
+
 ## [1.0.5] - 2025-12-31
 ### Fixed
 - Added additional safety net for parent device lookups. If batch fetching returns incomplete results (causing missing devices in the tree), the system now attempts an immediate individual fetch during tree construction. This fixes intermittent "missing device" issues.
