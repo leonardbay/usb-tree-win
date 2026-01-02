@@ -299,6 +299,11 @@ export function buildUSBTree(useSlowPath: boolean = false): USBTree {
             const numB = parseInt(b.port.replace('COM', ''));
             return numA - numB;
         });
+
+        // If single port, populate kernelName on the device itself so it's available on the USBDevice object
+        if (dev.comPorts.length === 1) {
+            dev.kernelName = dev.comPorts[0].kernelName;
+        }
     }
 
     // Build tree structure - assign children to parents
@@ -476,95 +481,35 @@ export function printUSBTree(tree: USBTree): void {
 /**
  * Get a flat list of all COM ports with their device info
  */
-export function getComPortList(tree: USBTree): Array<{
-    port: string;
-    vid: string;
-    pid: string;
-    serialNumber: string;
-    deviceName: string;
-    portChain: string;
-    kernelName: string;
-    channel?: number;
-    role?: string;
-}> {
-    const ports: Array<{
-        port: string;
-        vid: string;
-        pid: string;
-        serialNumber: string;
-        deviceName: string;
-        portChain: string;
-        kernelName: string;
-        channel?: number;
-        role?: string;
-    }> = [];
+export function getComPortList(tree: USBTree): USBDevice[] {
+    const devices: USBDevice[] = [];
 
-    for (const [, { device, comInfo }] of tree.comPortMap) {
-        // For multi-port devices, extend the port chain with the channel number
-        const isMultiPort = device.comPorts.length > 1;
-        const extendedChain = isMultiPort && comInfo.channel
-            ? `${device.portChain}-${comInfo.channel}`
-            : device.portChain;
-
-        ports.push({
-            port: comInfo.port,
-            vid: device.vid,
-            pid: device.pid,
-            serialNumber: device.serialNumber,
-            deviceName: device.name,
-            portChain: extendedChain,
-            kernelName: comInfo.kernelName,
-            channel: comInfo.channel,
-            role: comInfo.role,
-        });
+    for (const { device } of tree.comPortMap.values()) {
+        devices.push(device);
     }
 
     // Sort by COM port number
-    ports.sort((a, b) => {
-        const numA = parseInt(a.port.replace('COM', ''));
-        const numB = parseInt(b.port.replace('COM', ''));
+    devices.sort((a, b) => {
+        const portA = a.comPorts[0]?.port || '';
+        const portB = b.comPorts[0]?.port || '';
+        const numA = parseInt(portA.replace('COM', '')) || 0;
+        const numB = parseInt(portB.replace('COM', '')) || 0;
         return numA - numB;
     });
 
-    return ports;
+    return devices;
 }
 
 /**
- * Get device table data
+ * Get a flat list of devices (excluding Root Hubs) sorted by hierarchy
  */
-export function getDeviceTable(tree: USBTree): Array<{
-    vidPid: string;
-    name: string;
-    serialNumber: string;
-    comPorts: string;
-    portChain: string;
-    isHub: boolean;
-}> {
-    const rows: Array<{
-        vidPid: string;
-        name: string;
-        serialNumber: string;
-        comPorts: string;
-        portChain: string;
-        isHub: boolean;
-    }> = [];
+export function getDeviceTable(tree: USBTree): USBDevice[] {
+    const devices: USBDevice[] = [];
 
     function collectDevices(dev: USBDevice): void {
-        if (dev.vid === 'ROOT') return;
-
-        const comStr = dev.comPorts.map(c => {
-            const roleStr = c.role ? `(${c.role[0]})` : '';
-            return `${c.port}${roleStr}`;
-        }).join(', ');
-
-        rows.push({
-            vidPid: `${dev.vid}:${dev.pid}`,
-            name: dev.name,
-            serialNumber: dev.serialNumber,
-            comPorts: comStr,
-            portChain: dev.portChain,
-            isHub: dev.isHub,
-        });
+        if (dev.vid !== 'ROOT') {
+            devices.push(dev);
+        }
 
         for (const child of dev.children) {
             collectDevices(child);
@@ -577,7 +522,7 @@ export function getDeviceTable(tree: USBTree): Array<{
         }
     }
 
-    return rows;
+    return devices;
 }
 
 // Main execution
@@ -587,12 +532,6 @@ if (require.main === module) {
     try {
         const tree = buildUSBTree();
 
-        // DEBUG: Print raw devices to check parent paths
-        // console.log('--- Raw Devices ---');
-        // for (const dev of tree.allDevices.values()) {
-        //    console.log(`${dev.instancePath} -> Parent: ${dev.parentPath}`);
-        // }
-
         // Print tree
         printUSBTree(tree);
 
@@ -600,11 +539,12 @@ if (require.main === module) {
         console.log('--- COM Ports ---');
         const comPorts = getComPortList(tree);
         if (comPorts.length > 0) {
-            for (const port of comPorts) {
-                const role = port.role ? ` (${port.role})` : '';
-                const serial = port.serialNumber ? ` [S/N: ${port.serialNumber}]` : '';
-                const kernel = port.kernelName ? ` [Kernel: ${port.kernelName}]` : '';
-                console.log(`  ${port.port}: ${port.deviceName}${serial}${kernel} [Chain: ${port.portChain}]${role}`);        
+            for (const dev of comPorts) {
+                const comInfo = dev.comPorts[0];
+                const role = comInfo.role ? ` (${comInfo.role})` : '';
+                const serial = dev.serialNumber ? ` [S/N: ${dev.serialNumber}]` : '';
+                const kernel = dev.kernelName ? ` [Kernel: ${dev.kernelName}]` : '';
+                console.log(`  ${comInfo.port}: ${dev.name}${serial}${kernel} [Chain: ${dev.portChain}]${role}`);
             }
         } else {
             console.log('  No COM ports found');
@@ -616,13 +556,19 @@ if (require.main === module) {
         const table = getDeviceTable(tree);
         console.log('VID:PID    | Name                                     | Serial           | COM Ports        | Port Chain');
         console.log('-'.repeat(105));
-        for (const row of table) {
-            const vidPid = row.vidPid.padEnd(10);
-            const name = row.name.substring(0, 40).padEnd(40);
-            const serial = (row.serialNumber || '-').padEnd(16);
-            const com = (row.comPorts || '-').padEnd(16);
-            const chain = row.portChain;
-            const hub = row.isHub ? ' [HUB]' : '';
+        for (const dev of table) {
+            const vidPid = `${dev.vid}:${dev.pid}`.padEnd(10);
+            const name = dev.name.substring(0, 40).padEnd(40);
+            const serial = (dev.serialNumber || '-').padEnd(16);
+            
+            const comStr = dev.comPorts.map(c => {
+                const roleStr = c.role ? ` (${c.role[0]})` : '';
+                return `${c.port}${roleStr}`;
+            }).join(', ');
+            const com = (comStr || '-').padEnd(16);
+            
+            const chain = dev.portChain;
+            const hub = dev.isHub ? ' [HUB]' : '';
             console.log(`${vidPid} | ${name} | ${serial} | ${com} | ${chain}${hub}`);
         }
 

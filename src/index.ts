@@ -18,11 +18,12 @@ function main() {
         console.log('--- COM Ports ---');
         const comPorts = getComPortList(tree);
         if (comPorts.length > 0) {
-            for (const port of comPorts) {
-                const role = port.role ? ` (${port.role})` : '';
-                const serial = port.serialNumber ? ` [S/N: ${port.serialNumber}]` : '';
-                const kernel = port.kernelName ? ` [Kernel: ${port.kernelName}]` : '';
-                console.log(`  ${port.port}: ${port.deviceName}${serial}${kernel} [Chain: ${port.portChain}]${role}`);
+            for (const dev of comPorts) {
+                const comInfo = dev.comPorts[0];
+                const role = comInfo.role ? ` (${comInfo.role})` : '';
+                const serial = dev.serialNumber ? ` [S/N: ${dev.serialNumber}]` : '';
+                const kernel = dev.kernelName ? ` [Kernel: ${dev.kernelName}]` : '';
+                console.log(`  ${comInfo.port}: ${dev.name}${serial}${kernel} [Chain: ${dev.portChain}]${role}`);
             }
         } else {
             console.log('  No COM ports found');
@@ -34,13 +35,19 @@ function main() {
         const table = getDeviceTable(tree);
         console.log('VID:PID    | Name                                     | Serial           | COM Ports        | Port Chain');
         console.log('-'.repeat(105));
-        for (const row of table) {
-            const vidPid = row.vidPid.padEnd(10);
-            const name = row.name.substring(0, 40).padEnd(40);
-            const serial = (row.serialNumber || '-').padEnd(16);
-            const com = (row.comPorts || '-').padEnd(16);
-            const chain = row.portChain;
-            const hub = row.isHub ? ' [HUB]' : '';
+        for (const dev of table) {
+            const vidPid = `${dev.vid}:${dev.pid}`.padEnd(10);
+            const name = dev.name.substring(0, 40).padEnd(40);
+            const serial = (dev.serialNumber || '-').padEnd(16);
+            
+            const comStr = dev.comPorts.map(c => {
+                const roleStr = c.role ? `(${c.role[0]})` : '';
+                return `${c.port}${roleStr}`;
+            }).join(', ');
+            const com = (comStr || '-').padEnd(16);
+            
+            const chain = dev.portChain;
+            const hub = dev.isHub ? ' [HUB]' : '';
             console.log(`${vidPid} | ${name} | ${serial} | ${com} | ${chain}${hub}`);
         }
     } catch (error) {

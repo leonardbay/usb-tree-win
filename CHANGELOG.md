@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.7] - 2026-01-02
+### Changed
+- **Unified API Return Types**: Refactored `getComPortList()` and `getDeviceTable()` to return arrays of the full `USBDevice` object instead of simplified custom objects.
+  - This ensures consumers have access to all device properties (VID, PID, Serial, Port Chain, etc.) regardless of which API method they use.
+  - `getComPortList()` now returns `USBDevice[]` sorted by COM port number.
+  - `getDeviceTable()` now returns `USBDevice[]` sorted by hierarchy.
+
 ## [1.0.6] - 2026-01-02
 ### Added
 - **Fast Path Restoration**: Restored the high-performance `pnputil` implementation (ported from v1.0.1) as the default enumeration method. This is approximately 7x faster than the PowerShell/WMI method.

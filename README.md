@@ -16,6 +16,7 @@ A Node.js TypeScript implementation of USB device tree enumeration for Windows, 
 - **FTDI Dual-Port Support**: FTDI devices show as parent with JTAG/Serial children (e.g., `1-1-3-2-1`, `1-1-3-2-2`)
 - **Serial Number Detection**: Distinguishes real device serials from Windows instance IDs
 - **Connected Devices Only**: Only shows currently connected devices (no phantom devices)
+- **Unified Data Model**: All API methods (`getComPortList`, `getDeviceTable`) return the full `USBDevice` object, providing complete access to all device properties (VID, PID, Serial, Port Chain, etc.) in a consistent format.
 - **No Native Dependencies**: Uses Windows built-in tools (PowerShell, CIM/WMI) - no gyp/C++ compilation needed
 
 ## Installation
@@ -71,8 +72,8 @@ const devices = getDevicesByPortChainPrefix(tree, '1-1-3');
 
 // Get flat list of COM ports
 const comPorts = getComPortList(tree);
-for (const port of comPorts) {
-    console.log(`${port.port}: ${port.deviceName} [${port.portChain}]`);
+for (const dev of comPorts) {
+    console.log(`${dev.comPorts[0].port}: ${dev.name} [${dev.portChain}]`);
 }
 ```
 
