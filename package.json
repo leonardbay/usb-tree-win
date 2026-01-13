@@ -1,6 +1,6 @@
 {
     "name": "usb-tree-win",
-    "version": "1.0.8",
+    "version": "1.0.9",
     "description": "USB device tree enumeration for Windows with COM port mapping",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
