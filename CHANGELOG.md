@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.9] - 2026-01-13
+### Fixed
+- **Clean Output**: Removed stray debug console logs ("No parent", "Orphan device") that were appearing in standard output during enumeration.
+
+## [1.0.8] - 2026-01-10
+### Fixed
+- **Type Exports**: Fixed default export types to support `import * as utv from "utv"` syntax correctly.
+
 ## [1.0.7] - 2026-01-02
 ### Changed
 - **Unified API Return Types**: Refactored `getComPortList()` and `getDeviceTable()` to return arrays of the full `USBDevice` object instead of simplified custom objects.

@@ -314,11 +314,11 @@ export function buildUSBTree(useSlowPath: boolean = false): USBTree {
                 parent.children.push(dev);
             } else {
                 // DEBUG: Log missing parent
-                console.log(`Orphan device: ${dev.instancePath} (Parent: ${dev.parentPath})`);
+                // console.log(`Orphan device: ${dev.instancePath} (Parent: ${dev.parentPath})`);
             }
         } else {
             // DEBUG: Log no parent
-            console.log(`No parent: ${dev.instancePath}`);
+            // console.log(`No parent: ${dev.instancePath}`);
         }
     }
 
