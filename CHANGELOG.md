@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.10] - 2026-04-24
+### Added
+- **Zebra Printer Recognition**: Added VID `0A5F` (Zebra Technologies) and product entries for `0A5F:0181` (ZD411-203dpi ZPL) and `0A5F:0185` (ZD421-203dpi ZPL).
+- **TI Programmer Recognition**: Added VID `2047` (Texas Instruments) and product entry for `2047:0013` (MSP-EXP430G2ET LaunchPad).
+
 ## [1.0.9] - 2026-01-13
 ### Fixed
 - **Clean Output**: Removed stray debug console logs ("No parent", "Orphan device") that were appearing in standard output during enumeration.
